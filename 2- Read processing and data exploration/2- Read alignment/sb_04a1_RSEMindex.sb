@@ -1,0 +1,20 @@
+#!/bin/sh -login
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --job-name RSEMindex
+
+
+# move the session to the directory with the singularity container
+cd ${SLURM_SUBMIT_DIR}
+
+
+singularity exec --bind ${SLURM_SUBMIT_DIR} trinityrnaseq.v2.11.0.simg ./sb_04a2_bash.sb
+
+
+# monitor run and resources
+# write job information to SLURM output file
+scontrol show job $SLURM_JOB_ID 
+# write resource usage to SLURM output file (powetools command)
+js -j $SLURM_JOB_ID

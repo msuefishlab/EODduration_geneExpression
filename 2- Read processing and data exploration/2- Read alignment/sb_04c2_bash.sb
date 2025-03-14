@@ -1,0 +1,39 @@
+#!/bin/bash -login
+
+export R_LIBS_USER=~/R/ 
+
+#go to the directory where the counts are
+cd ${SLURM_SUBMIT_DIR}/04_align_count
+
+## Prepare a file that lists all the files with the per-sample transcript counts
+indiv=(BB-*/)
+printf '%s\n' "${indiv[@]}" > counts_per_sample.txt
+sed -ri 's/(^.*$)/\1RSEM.isoforms.results/' counts_per_sample.txt
+
+
+
+#Build Transcript and Gene Expression Matrices   https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-Transcript-Quantification#rsem-output
+#Using the transcript and gene-level abundance estimates for each of your samples, construct a matrix of counts and a matrix of normalized expression values using the following script
+$TRINITY_HOME/util/abundance_estimates_to_matrix.pl --est_method RSEM --gene_trans_map ${SLURM_SUBMIT_DIR}/000_wrangle_transcripts/gene-trans-map.txt --quant_files counts_per_sample.txt --name_sample_by_basedir --out_prefix RSEM 
+
+#Notice this important info from the Trinity website (we will be using gene counts only): 
+#When you include the --gene_trans_map file above, it will automatically generate the gene-level count and expression matrices, using the 'scaledTPM' method as described in txImport but implemented here directly in the Trinity script. This 'scaledTPM' method for estimating gene counts accounts for differences in isoform lengths that could otherwise lead to false gene DE reporting under situations where it is differential transcript usage (DTU) as opposed to differential gene expression (DGE) occurring. See Soneson et al., F1000 Research, 2016 for details.
+
+#Counting Numbers of Expressed Transcripts or Genes https://github.com/trinityrnaseq/trinityrnaseq/wiki/Trinity-Transcript-Quantification#rsem-output
+#Given a matrix of TPM values (ideally, in this case, not the TMM normalized version), you can plot the number of genes (or transcripts) that are expressed above a minimum TPM expression threshold in any sample like so
+$TRINITY_HOME/util/misc/count_matrix_features_given_MIN_TPM_threshold.pl RSEM.gene.TPM.not_cross_norm > RSEM.gene.TPM.not_cross_norm.counts_by_min_TPM
+
+$TRINITY_HOME/util/misc/count_matrix_features_given_MIN_TPM_threshold.pl RSEM.isoform.TPM.not_cross_norm > RSEM.isoform.TPM.not_cross_norm.counts_by_min_TPM
+
+
+#Compute ExN50 Statistic  https://github.com/trinityrnaseq/trinityrnaseq/wiki/Transcriptome-Contig-Nx-and-ExN50-stats
+$TRINITY_HOME/util/misc/contig_ExN50_statistic.pl RSEM.isoform.TMM.EXPR.matrix ${SLURM_SUBMIT_DIR}/000_wrangle_transcripts/transcripts.fna > ExN50.stats
+
+
+#Plot the Ex value (first column) against the ExN50 value
+${TRINITY_HOME}/util/misc/plot_ExN50_statistic.Rscript  ExN50.stats
+
+
+#how many transcripts correspond to the Ex 90 peak:
+cat RSEM.isoform.TMM.EXPR.matrix.E-inputs |  egrep -v ^\# | awk '$1 <= 90' | wc -l > number_transcripts_Ex90
+

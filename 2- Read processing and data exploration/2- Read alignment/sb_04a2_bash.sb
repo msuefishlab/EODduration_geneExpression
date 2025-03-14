@@ -1,0 +1,7 @@
+#!/bin/bash -login
+
+cd ${SLURM_SUBMIT_DIR}/
+
+$TRINITY_HOME/util/align_and_estimate_abundance.pl --thread_count 2 --transcripts ${SLURM_SUBMIT_DIR}/000_wrangle_transcripts/transcripts.fna --gene_trans_map ${SLURM_SUBMIT_DIR}/000_wrangle_transcripts/gene-trans-map.txt --seqType fq --est_method RSEM --aln_method bowtie2 --prep_reference --output_dir ${SLURM_SUBMIT_DIR}/000_wrangle_transcripts/
+
+

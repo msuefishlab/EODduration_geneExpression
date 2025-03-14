@@ -1,0 +1,26 @@
+#!/bin/bash -login
+
+# go to the directory where the trimmed reads are
+cd ${SLURM_SUBMIT_DIR}/02_TrimmedReads
+
+# make a list of the files that we want the script to work on
+R1s=(BB*1P.fastq)
+R2s=(BB*2P.fastq)
+
+#choose the files for the current run
+F=${R1s[${SLURM_ARRAY_TASK_ID}]}
+R=${R2s[${SLURM_ARRAY_TASK_ID}]}
+
+#xtract the sample's name
+indiv=${F%_*}
+
+# log the sample and files used
+echo -en ${SLURM_ARRAY_TASK_ID} '\t' $indiv '\t' $F '\t' $R '\n' >> ${SLURM_SUBMIT_DIR}/04_align_count/List_of_input_reads_RSEM.txt
+
+
+# make a directory to save files for this sample
+mkdir ${SLURM_SUBMIT_DIR}/04_align_count/${indiv}
+
+#align and count
+$TRINITY_HOME/util/align_and_estimate_abundance.pl --thread_count 8 --transcripts ${SLURM_SUBMIT_DIR}/000_wrangle_transcripts/transcripts.fna --gene_trans_map ${SLURM_SUBMIT_DIR}/000_wrangle_transcripts/gene-trans-map.txt --seqType fq --left $F --right $R --est_method RSEM --include_rsem_bam --aln_method bowtie2 --coordsort_bam --output_dir ${SLURM_SUBMIT_DIR}/04_align_count/${indiv}
+
