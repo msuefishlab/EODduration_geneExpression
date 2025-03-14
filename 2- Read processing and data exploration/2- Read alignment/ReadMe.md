@@ -1,1 +1,2 @@
+The first step is to wrangle the transcripts from the NCBI-annotated (release 100) B. brachyistius genome. From this annotation, we start with the file rna.fna. The file cmd_wrangle_ncbi_rna_file.txt has the bash commands to process the transcripts. It produces 2 outputs: a "map" file that links transcripts to genes (gene-trans-map.txt, provided in this folder), and transcripts.fna, which includes the predicted transcripts minus the rRNAs.
 
