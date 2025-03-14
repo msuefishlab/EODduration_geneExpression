@@ -1,0 +1,33 @@
+#!/bin/sh -login
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=04:59:00
+#SBATCH --job-name FastQCraw
+
+
+# move the session to the work directory
+cd ${SLURM_SUBMIT_DIR}/00_RawReads
+
+# load the program we want to run
+module load FastQC/0.11.7-Java-1.8.0_162
+
+
+# make an array (list) of the files that we want the script to work on
+files=(BB*)
+
+# run your program!
+
+# total files - 1 (for loop purposes)
+last=$((${#files[@]} - 1))
+
+for i in $(seq 0 $last)
+do
+fastqc -o ${SLURM_SUBMIT_DIR}/01_FastQC_Raw ${files[$i]}
+done
+
+# monitor run and resources
+# write job information to SLURM output file
+scontrol show job $SLURM_JOB_ID 
+# write resource usage to SLURM output file (powetools command)
+js -j $SLURM_JOB_ID

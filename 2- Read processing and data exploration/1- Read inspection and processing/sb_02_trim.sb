@@ -1,0 +1,63 @@
+#!/bin/sh -login
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=15:59:00
+#SBATCH --job-name trimming
+
+
+# load the program we want to run
+module purge
+module load Trimmomatic/0.39-Java-1.8
+
+
+# move the session to the work directory
+cd ${SLURM_SUBMIT_DIR}/00_RawReads
+
+# make an array (list) of the files that we want the script to work on
+R1s=(BB*R1*gz)
+R2s=(BB*R2*gz)
+
+# move the session to the work directory
+cd ${SLURM_SUBMIT_DIR}/02_TrimmedReads
+
+# total files - 1 (for loop purposes)
+last=$((${#R1s[@]} - 1))
+
+for i in $(seq 0 $last)
+do
+
+#construct the names for output files
+out_base_name=${R1s[$i]%_R1*}
+
+# paired outputs
+P1=${out_base_name}_1P.fastq
+P2=${out_base_name}_2P.fastq
+#unpaired outputs
+U1=${out_base_name}_1U.fastq
+U2=${out_base_name}_2U.fastq
+
+# save names of each pair of input reads and output reads to a file
+echo $i >> List_of_sets_of_reads.txt
+echo "inputs" >> List_of_sets_of_reads.txt
+echo ${R1s[$i]} >> List_of_sets_of_reads.txt
+echo ${R2s[$i]} >> List_of_sets_of_reads.txt
+echo "outputs" >> List_of_sets_of_reads.txt
+echo -en '\t'"paired"'\n' >> List_of_sets_of_reads.txt
+echo $P1 >> List_of_sets_of_reads.txt
+echo $P2 >> List_of_sets_of_reads.txt
+echo -en '\t'"unpaired"'\n' >> List_of_sets_of_reads.txt
+echo $U1 >> List_of_sets_of_reads.txt
+echo $U2 >> List_of_sets_of_reads.txt
+echo -en '\n' >> List_of_sets_of_reads.txt
+
+# run Trimmomatic
+java -jar $EBROOTTRIMMOMATIC/trimmomatic-0.39.jar PE -threads 7 -trimlog Logs/${out_base_name}_Trimmomatic.txt ../00_RawReads/${R1s[$i]} ../00_RawReads/${R2s[$i]} $P1 $U1 $P2 $U2 ILLUMINACLIP:$EBROOTTRIMMOMATIC/adapters/TruSeq3-PE-2.fa:2:30:10:1:true SLIDINGWINDOW:4:5 LEADING:5 TRAILING:5 MINLEN:25
+
+done
+
+# monitor run and resources
+# write job information to SLURM output file
+scontrol show job $SLURM_JOB_ID 
+# write resource usage to SLURM output file (powetools command)
+js -j $SLURM_JOB_ID
