@@ -1,0 +1,16 @@
+#!/bin/bash -login
+
+export R_LIBS_USER=~/R/ 
+
+# Differential Expression Analysis
+
+cd ${SLURM_SUBMIT_DIR}/06_DGE
+
+$TRINITY_HOME/Analysis/DifferentialExpression/run_DE_analysis.pl --matrix ${SLURM_SUBMIT_DIR}/04_align_count/RSEM.gene.counts.matrix --method edgeR --samples_file ${SLURM_SUBMIT_DIR}/samples.txt --output ${SLURM_SUBMIT_DIR}/06_DGE
+
+
+# Extract and cluster DE genes
+
+$TRINITY_HOME/Analysis/DifferentialExpression/analyze_diff_expr.pl --matrix ${SLURM_SUBMIT_DIR}/04_align_count/RSEM.gene.TMM.EXPR.matrix --samples ${SLURM_SUBMIT_DIR}/samples.txt
+
+
