@@ -1,0 +1,30 @@
+# generate gene_to_transcripts_map file
+cat rna.fna | perl -lane 'if (/^>(\S+).*\((\S+)\)/) { print "$2\t$1";}' > gene-trans-map_all.txt
+
+# get ids from rRNA sequences
+grep ', rRNA' rna.fna > ids_rRNA.txt
+
+# remove leading >
+sed -i 's/^>//' ids_rRNA.txt
+
+# remove anything after the first space (=keep XR_*.* code)
+sed -i -r 's/(\ .*$)//' ids_rRNA.txt
+
+# remove rRNA codes from the gene_to_transcripts file
+awk -F '\t' 'NR==FNR{a[$1]=$1}NR>FNR{if(!(a[$2]))print $0}' ids_rRNA.txt gene-trans-map_all.txt > gene-trans-map.txt
+
+
+
+# the following steps use samtools to remove the rRNA sequences
+
+# create fasta index
+samtools faidx rna.fna
+
+# make a variable with the ids to retain, as individual arguments separated by space (as required by samtools)
+keep_ids=($(awk '{print $1}' rna.fna.fai | grep -v -f ids_rRNA.txt))
+
+# use samtools to subset the rna.fna file, removing the rRNA sequences
+samtools faidx -o transcripts.fna rna.fna "${keep_ids[@]}"
+
+
+
