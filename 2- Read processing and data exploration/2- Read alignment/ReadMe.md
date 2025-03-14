@@ -2,3 +2,5 @@ The first step is to wrangle the transcripts from the NCBI-annotated (release 10
 
 Then, the code in files sb_04* estimates transcript abundance. Files sb_04a* create the RSEM index, sb_04b* align reads to transcripts and quantify gene expression, and sb_04c* build gene expression matrices. Some of the outputs are used in the Differential Gene Expression Analyses.
 
+Finally, the code in files sb_05* explores the gene expression data. One of the outputs is the gene expression correlation matrix.
+
