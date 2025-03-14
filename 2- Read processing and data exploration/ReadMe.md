@@ -9,3 +9,7 @@ v2.3.4.1 (Langmead and Salzberg, 2012). Expression quantification was estimated 
 level using RSEM v1.3.0 (Li and Dewey, 2011), followed by exploration of the data with a gene
 expression correlation matrix based on Euclidean distances and Pearson’s correlation
 coefficient (for genes with read counts > 10, Trinity’s default parameters).
+
+
+
+singularity for trinity, slurm?, wrangle Bbrach transcripts and Danio prots?
