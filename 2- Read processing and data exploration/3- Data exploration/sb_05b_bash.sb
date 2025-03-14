@@ -1,0 +1,32 @@
+#!/bin/bash -login
+
+export R_LIBS_USER=~/R/ 
+
+# Quality control of samples
+
+cd ${SLURM_SUBMIT_DIR}/05_quality_control
+
+mkdir -p Per_sample/
+mkdir -p Across_samples/corr_mat
+mkdir -p Across_samples/PCA
+
+# a) Compare replicates for each sample
+
+cd ${SLURM_SUBMIT_DIR}/05_quality_control/Per_sample/
+
+$TRINITY_HOME/Analysis/DifferentialExpression/PtR --matrix ${SLURM_SUBMIT_DIR}/04_align_count/RSEM.gene.counts.matrix --samples ${SLURM_SUBMIT_DIR}/samples.txt --CPM --log2 --min_rowSums 10 --compare_replicates 
+
+# b) Compare replicates across samples - Correlation matrix
+
+cd ${SLURM_SUBMIT_DIR}/05_quality_control/Across_samples/corr_mat
+
+$TRINITY_HOME/Analysis/DifferentialExpression/PtR --matrix ${SLURM_SUBMIT_DIR}/04_align_count/RSEM.gene.counts.matrix -s ${SLURM_SUBMIT_DIR}/samples.txt --CPM --log2 --min_rowSums 10 --sample_cor_matrix 
+
+# c) Compare replicates across samples - PCA
+
+cd ${SLURM_SUBMIT_DIR}/05_quality_control/Across_samples/PCA
+
+$TRINITY_HOME/Analysis/DifferentialExpression/PtR --matrix ${SLURM_SUBMIT_DIR}/04_align_count/RSEM.gene.counts.matrix -s ${SLURM_SUBMIT_DIR}/samples.txt --CPM --log2 --prin_comp 3 --min_rowSums 10 --center_rows
+
+
+
