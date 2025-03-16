@@ -1,0 +1,221 @@
+---
+title: "Annotation_wrangling: Create a Bbrach_GeneIDs to Drerio_GO_terms dictionary based on the blastp Bbrach-Danio annotations. Also, create a dictionary of GO_IDs to GO_terms"
+author: "Mauricio Losilla"
+output: html_document
+---
+
+```{r setup}
+# Load required libraries
+library(knitr) #only needed to knit Rmarkdown file
+library(mygene)
+library(waldo)
+library(plyr)
+library(dplyr)
+library(tidyr)
+
+session.Info <- sessionInfo()
+MyGene.Info <- metadata(MyGene())
+
+```
+
+Import Data. The columns need headers:
+
+qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
+
+This is what they mean:
+
+ 1.	  qseqid	    query (e.g., gene) sequence id
+ 2.	  sseqid    	subject (e.g., reference genome) sequence id
+ 3.	  pident	    percentage of identical matches
+ 4.	  length	    alignment length
+ 5.	  mismatch	  number of mismatches
+ 6.	  gapopen	    number of gap openings
+ 7.	  qstart	    start of alignment in query
+ 8.   qend	      end of alignment in query
+ 9.   sstart	    start of alignment in subject
+ 10.	send	      end of alignment in subject
+ 11.	evalue	    expect value
+ 12.	bitscore	  bit score
+ 
+ Import the results of the blastp of Bbrach_refseq_prots against Drerio_refseq_prots
+```{r}
+#Import the data and name the columns
+blastp.result.original <- read.table("../merged_blast_results_ncbi.blastp_fixed", header=FALSE, col.names = c("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore"), as.is = c(1,2))
+
+#Keep the columns of interest and rename columns to a more descriptive name
+blastp.result <- blastp.result.original[, c("qseqid", "sseqid", "evalue", "bitscore")]
+colnames(blastp.result) <- c("Bbrach_refseq_prot", "Drerio_refseq_prot", "Evalue", "bitscore")
+```
+
+blastp results are protein to protein. I need to connect Bbrach genes to proteins
+Convert Bbrach proteins (XP.....) to entrez gene ids (mygene):
+```{r}
+# mygene version: 1.32.0
+
+#save the protein names to a vector
+Bbrach.prots <- as.character(blastp.result[,"Bbrach_refseq_prot"])
+
+#use queryMany to map proteins to gene IDs, symbols and names
+##the NCBI taxid for Brienomyrus brachyistius is 42636
+#the list of available fields for 'scopes' and 'fields' can be found at http://docs.mygene.info/en/latest/doc/query_service.html#available-fields
+Bbrach.gene.ids <- queryMany(Bbrach.prots, scopes="refseq.protein", fields=c("entrezgene", "symbol", "name"), species=42636,  returnall=TRUE)
+
+#make sure there are no genes under $duplicates and $missing
+if (nrow(Bbrach.gene.ids$duplicates) != 0) stop("There are duplicated values. This is a critical error", call. = FALSE)
+if (length(Bbrach.gene.ids$missing) != 0) stop("There are missing values. This is a critical error", call. = FALSE)
+
+#make sure that $response has the correct number of rows
+if (nrow(Bbrach.gene.ids$response) != nrow(blastp.result)) stop("The total numbers of Bbrach proteins and gene IDs differ. This is a critical error", call. = FALSE)
+
+#make sure the genes are in the same order
+check <- compare(Bbrach.prots, Bbrach.gene.ids$response$query)
+if (length(check) != 0) stop("The lists of Bbrach proteins don't match. This is a critical error", call. = FALSE)
+
+#convert the results from lists to a data frame
+Bbrach.genes.prots <- do.call(cbind.data.frame, lapply(Bbrach.gene.ids$response@listData, cbind))
+
+#check for NAs
+if (length(which(is.na(Bbrach.genes.prots))) != 0) warning("There are some NA values", call. = FALSE)
+
+#Keep the columns of interest and rename columns to a more descriptive name
+Bbrach.genes.prots <- Bbrach.genes.prots[, c("query", "entrezgene", "name", "symbol")]
+colnames(Bbrach.genes.prots) <- c("Bbrach_refseq_prot", "Bbrach_Entrez_geneID", "Bbrach_gene_name", "Bbrach_gene_symbol")
+
+#join the data frames by the Bbrach_refseq_protein column (full join gives the same result as inner join)
+Bbrach_all.Danio_prot.data <- full_join(Bbrach.genes.prots, blastp.result, by = "Bbrach_refseq_prot")
+
+#check for NAs
+if (length(which(is.na(Bbrach_all.Danio_prot.data))) != 0) warning("There are some NA values", call. = FALSE)
+```
+
+Use mygene again, this time to link Drerio's refseq proteins with their Entrez_GeneIDs, GO terms and other fields of potential interest 
+```{r}
+
+#extract the Drerio proteins as a vector 
+Drerio.refseq.prot <- Bbrach_all.Danio_prot.data$Drerio_refseq_prot
+Drerio.refseq.prot.unique <- unique(Drerio.refseq.prot)
+
+#use queryMany to map proteins to gene IDs, gene symbols, gene names, GO terms and other fields of potential interest 
+##the NCBI taxid for Danio rerio is 7955
+Drerio.gene.ids <- queryMany(Drerio.refseq.prot.unique, scopes = "refseq.protein", fields=c("entrezgene", "symbol", "name", "go", "ensembl.gene", "unigene", "homologene", "pathway.reactome"), species=7955,  returnall=TRUE)
+
+#make sure there are no genes under $duplicates and $missing
+if (nrow(Drerio.gene.ids$duplicates) != 0) stop("There are duplicated values. This is a critical error", call. = FALSE)
+if (length(Drerio.gene.ids$missing) != 0) stop("There are missing values. This is a critical error", call. = FALSE)
+
+#make sure that $response has the correct number of rows
+if (nrow(Drerio.gene.ids$response) != length(Drerio.refseq.prot.unique)) stop("The total numbers of Drerio proteins and gene IDs differ. This is a critical error", call. = FALSE)
+
+#make sure the genes are in the same order
+check <- compare(Drerio.refseq.prot.unique, Drerio.gene.ids$response$query)
+if (length(check) != 0) stop("The lists of Drerio proteins don't match. This is a critical error", call. = FALSE)
+```
+
+convert the results from lists to a data frame and join with the Bbrach data
+```{r}
+#columns to keep
+cols <- c("query", "entrezgene", "name", "symbol")
+
+#extract desired columns
+Drerio.genes.prots <- lapply(Drerio.gene.ids$response[, cols], "[")
+
+#convert list to a data frame
+Drerio.genes.prots <- do.call(cbind.data.frame, lapply(Drerio.genes.prots, cbind))
+
+#check for NAs
+if (length(which(is.na(Drerio.genes.prots))) != 0) warning("There are some NA values", call. = FALSE)
+
+#Rename columns to a more descriptive name
+colnames(Drerio.genes.prots) <- c("Drerio_refseq_prot", "Drerio_Entrez_geneID", "Drerio_gene_name", "Drerio_gene_symbol")
+
+#join the data frames by the Bbrach_refseq_protein column (full join gives the same result as inner join)
+Bbrach_all.Danio_all.data <- full_join(Bbrach_all.Danio_prot.data, Drerio.genes.prots, by = "Drerio_refseq_prot")
+
+#check for NAs
+if (length(which(is.na(Bbrach_all.Danio_all.data))) != 0) warning("There are some NA values", call. = FALSE)
+
+#This data frame will be useful if I need to look a gene names and symbols, etc. But for the dictionary I rather simplify this a bit:
+#remove unnecessary columns. Keep only the entrezGeneIDs for each species 
+EntrezGeneIDs.Bbrach.Drerio <- Bbrach_all.Danio_all.data[, c("Bbrach_Entrez_geneID", "Drerio_Entrez_geneID")]
+
+#remove duplicated rows
+unique.EntrezGeneIDs.Bbrach.Drerio <- EntrezGeneIDs.Bbrach.Drerio[!duplicated(EntrezGeneIDs.Bbrach.Drerio), ]
+# This data frame has 25269 rows, 24479 unique Bbrach geneIDs, and 16953 unique Drerio geneIDs
+```
+
+
+Create "dictionaries" that match GO_IDs and GO_terms for each ontology. These are not necessary for Mitch to run, but they are useful for submitting a list of Go_IDs to Amigo2 Visualize to inspect the GO hierarchy of the terms of interest.
+```{r}
+#extract each ontology info for the Drerio_Entrez_geneIDs (which I got through MyGene)
+list.GO.BP <- Drerio.gene.ids$response@listData$go.BP
+names(list.GO.BP) <- Drerio.gene.ids$response$entrezgene
+
+list.GO.CC <- Drerio.gene.ids$response@listData$go.CC
+names(list.GO.CC) <- Drerio.gene.ids$response$entrezgene
+
+list.GO.MF <- Drerio.gene.ids$response@listData$go.MF
+names(list.GO.MF) <- Drerio.gene.ids$response$entrezgene
+
+#convert to data frames with sorted, unique GOids and GOterms in columns
+
+#create empty data frames with desired columns
+GO.gene.id.term.BP <- data.frame(Drerio_Entrez_geneID=character(), GO_IDs=character(), GO_terms=character(), stringsAsFactors=FALSE)
+GO.gene.id.term.CC <- data.frame(Drerio_Entrez_geneID=character(), GO_IDs=character(), GO_terms=character(), stringsAsFactors=FALSE)
+GO.gene.id.term.MF <- data.frame(Drerio_Entrez_geneID=character(), GO_IDs=character(), GO_terms=character(), stringsAsFactors=FALSE)
+
+#populate the data frames with the Drerio_Entrez_GeneIDs and the sorted, unique, GO ids and GO terms
+for (i in 1:length(Drerio.refseq.prot.unique)) {
+ 
+  #collapsing with ";" is necessary because some GOterms have a "," !! This messes up the function "separate_rows", which separates the collapsed lists into rows
+  GO.gene.id.term.BP[i, "Drerio_Entrez_geneID"] <- names(list.GO.BP[i])
+  GO.gene.id.term.BP[i, "GO_IDs"] <- paste(list.GO.BP[[i]]$id, collapse = ";")
+  GO.gene.id.term.BP[i, "GO_terms"] <- paste(list.GO.BP[[i]]$term, collapse = ";")
+  
+  GO.gene.id.term.CC[i, "Drerio_Entrez_geneID"] <- names(list.GO.CC[i])
+  GO.gene.id.term.CC[i, "GO_IDs"] <- paste(list.GO.CC[[i]]$id, collapse = ";")
+  GO.gene.id.term.CC[i, "GO_terms"] <- paste(list.GO.CC[[i]]$term, collapse = ";")
+  
+  GO.gene.id.term.MF[i, "Drerio_Entrez_geneID"] <- names(list.GO.MF[i])
+  GO.gene.id.term.MF[i, "GO_IDs"] <- paste(list.GO.MF[[i]]$id, collapse = ";")
+  GO.gene.id.term.MF[i, "GO_terms"] <- paste(list.GO.MF[[i]]$term, collapse = ";")
+  
+}
+
+#separate the collapsed lists of GO ids and terms into rows. The gene column serves as a check
+GO.gene.id.term.BP <- separate_rows(GO.gene.id.term.BP, GO_IDs, GO_terms, sep = ";")
+GO.gene.id.term.CC <- separate_rows(GO.gene.id.term.CC, GO_IDs, GO_terms, sep = ";")
+GO.gene.id.term.MF <- separate_rows(GO.gene.id.term.MF, GO_IDs, GO_terms, sep = ";")
+
+
+#drop the gene column
+GO.id.term.BP <- subset(GO.gene.id.term.BP, select = -Drerio_Entrez_geneID)
+GO.id.term.CC <- subset(GO.gene.id.term.CC, select = -Drerio_Entrez_geneID)
+GO.id.term.MF <- subset(GO.gene.id.term.MF, select = -Drerio_Entrez_geneID)
+
+
+#remove duplicates and sort by GO_ID
+GO.id.term.BP <- unique(GO.id.term.BP[GO.id.term.BP$GO_IDs != "", ])
+GO.id.term.BP <- arrange(GO.id.term.BP, GO_IDs)
+
+GO.id.term.CC <- unique(GO.id.term.CC[GO.id.term.CC$GO_IDs != "", ])
+GO.id.term.CC <- arrange(GO.id.term.CC, GO_IDs)
+
+GO.id.term.MF <- unique(GO.id.term.MF[GO.id.term.MF$GO_IDs != "", ])
+GO.id.term.MF <- arrange(GO.id.term.MF, GO_IDs)
+
+```
+
+Save 
+```{r}
+#Save lists with GO_IDs and GO_terms for each ontology
+write.table(unique.EntrezGeneIDs.Bbrach.Drerio, file="out/geneIDs_Bbrach_Drerio.txt", quote=F, sep="\t", row.names = FALSE)
+
+#Save lists with GO_IDs to GO_terms dictionary
+write.table(GO.id.term.BP, file="out/Dic.BP.GOid_to_term.txt", quote=F, sep="\t", row.names = FALSE)
+write.table(GO.id.term.CC, file="out/Dic.CC.GOid_to_term.txt", quote=F, sep="\t", row.names = FALSE)
+write.table(GO.id.term.MF, file="out/Dic.MF.GOid_to_term.txt", quote=F, sep="\t", row.names = FALSE)
+
+
+#save the workspace
+save.image(file = "Annot_wrangling_NCBI_GOterms.RData")
+```

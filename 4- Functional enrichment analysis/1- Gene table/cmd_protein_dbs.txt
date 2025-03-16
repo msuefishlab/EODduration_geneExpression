@@ -1,0 +1,22 @@
+
+
+# To speed annotation, split B. brachyistius protein file. We used Maker's fasta_tool:
+fasta_tool --chunks 10   000_Bbrach_ref/ncbi_dataset/data/GCF_023856365.1/protein.faa 
+
+
+# make blast database. Notice that the protein file used here is from Danio rerio.
+
+module load GCC/10.2.0  OpenMPI/4.0.5
+module load BLAST+/2.11.0
+
+makeblastdb -in protein.faa -dbtype prot -parse_seqids
+
+
+# run blastp with sb_07_blastp.sh
+
+
+# merge the blastp results
+cat ./split_blast_results/*blastp > merged_blast_results_ncbi.blastp
+
+
+# when using my_gene I realized that two Bbrach proteins were blasted to a depracated Drerio protein. I went back to this blast folder and reblasted these 2 proteins and chose the second best match. Then I updated the merged_blast_results_ncbi.blastp file (the final file is called merged_blast_results_ncbi.blastp_fixed)
