@@ -1,6 +1,6 @@
 Mitch needs three inputs: 
 
-a) profiled expression data (generated in the Differential Expression Analyses)
+a) profiled expression data (generated in the Differential Expression Analyses)  
 b) a gene set library (generated with the script update_GO.sh from GeneSCF-v1.1-p3, and provided here: GO_BP_gid.txt)
 c) a "translator" gene table that relates gene identifiers from the other two input files (folder 1- Gene table). 
 
