@@ -1,16 +1,13 @@
-Mitch needs three inputs: profiled expression data (generated in the Differential Expression Analyses), a gene set library (folder 1- Gene set library), and a "translator" gene table that relates gene identifiers on the other two input files (folder 2- Gene table). 
+Mitch needs three inputs: 
 
-Once all required inputs are available, run mitch (folder 3- mitch analysis) 
+a) profiled expression data (generated in the Differential Expression Analyses)
+b) a gene set library (generated with the script update_GO.sh from GeneSCF-v1.1-p3, and provided here: GO_BP_gid.txt)
+c) a "translator" gene table that relates gene identifiers from the other two input files (folder 1- Gene table). 
+
+Once all required inputs are available, run mitch (folder 2- mitch analysis) 
 
 
 
-For the gene set library, we used a Danio rerio gmt file with gene ontology (GO) (Ashburner et al., 2000; Carbon et al.,
-2021) terms from the GO domain Biological Process as gene sets. To generate this file, we
-employed the script update_GO.sh from GeneSCF-v1.1-p3 (Subhash and Kanduri, 2016). 
-
-Since
-the gene identifiers in the gmt file are different than those of the edgeR results, mitch requires a
-third input file that relates these gene identifiers. 
 
 To create this file, we first identified homologous proteins predicted from the B. brachyistius reference genome and those predicted
 from Danio rerio (GRCz11) by blastp (BLAST+v2.11.0, Camacho et al., 2009). For each protein,
