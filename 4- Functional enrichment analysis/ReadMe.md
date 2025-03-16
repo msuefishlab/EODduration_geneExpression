@@ -1,10 +1,8 @@
-We employed mitch v1.8.0 (Kaspi and Ziemann, 2020) to detect sets of genes that exhibit joint
-up- or downregulation across our three contrasts. 
+Mitch needs three inputs: profiled expression data (generated in the Differential Expression Analyses), a gene set library (folder 1- Gene set library), and a "translator" gene table that relates gene identifiers on the other two input files (folder 2- Gene table). 
 
-As inputs, mitch needs a 
-gene set library and
-profiled expression data. The latter was the whole set (i.e. not filtered by FC or p-value
-thresholds) of edgeR differential expression results from each contrast. 
+Once all required inputs are available, run mitch (folder 3- mitch analysis) 
+
+
 
 For the gene set library, we used a Danio rerio gmt file with gene ontology (GO) (Ashburner et al., 2000; Carbon et al.,
 2021) terms from the GO domain Biological Process as gene sets. To generate this file, we
