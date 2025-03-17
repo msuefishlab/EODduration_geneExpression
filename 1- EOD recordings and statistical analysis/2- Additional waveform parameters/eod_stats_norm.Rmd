@@ -1,0 +1,423 @@
+---
+title: "Deep Dive on EOD Changes with Testasterone Treatment"
+output: html_notebook
+---
+
+## Motivation
+
+Reviewer Comments addressed here:
+
+Toward this end, the EOD waveform can be characterized by dozens of additional parameters beyond just the overall waveform duration. This is important in the present case because these parameters might provide clues about the underlying passive and ionic mechanisms that change EOD waveform at the level of the electrocyte, for example:
+
+1. the durations of P1 and P2 ✅, 
+2. the rise slope of P1 ✅, 
+3. the decay characteristics of P2 (single vs. multiple time constant) ✅  
+    nb: The single time constant seemed to fit adequately, not sure a multiple time constant is needed, 
+4. changes in the delay between the peaks of P1 and P2 ✅, 
+5. changes in the relative amplitude of P1 and P2, etc ✅. 
+6. Parameters such as these should at least be reported for the sake of completeness ✅.
+
+
+```{r setup, include=FALSE}
+root<-rprojroot::find_root(".git/index")
+knitr::opts_knit$set(root.dir = root)
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(multcompView)
+library(flextable)
+library(officer)
+source("stats_and_plot.R")
+```
+
+```{r}
+eod_measurement_path<-file.path(root, "output_data/norm_measurement_data.csv")
+eod_measurement_data<-read.table(eod_measurement_path,header=T,sep = ",")
+```
+
+```{r}
+eod_measurement_data$duration<-eod_measurement_data$tT2-eod_measurement_data$tT1
+eod_measurement_data$p1_duration<-eod_measurement_data$tZC2-eod_measurement_data$tP1
+eod_measurement_data$p2_duration<-eod_measurement_data$tP2-eod_measurement_data$tZC2
+eod_measurement_data$vP2.vP1.ratio<-eod_measurement_data$vP2/eod_measurement_data$vP1
+```
+
+```{r}
+# Convert treatdate to proper Date format
+
+eod_measurement_data <- filter(eod_measurement_data, period=="EXPT")
+
+eod_measurement_data <- eod_measurement_data %>%
+  mutate(treatdate = as.Date(treatdate, format = "%d-%b"))
+
+# Calculate n_days
+eod_measurement_data <- eod_measurement_data %>%
+  group_by(individual) %>%
+  mutate(n_days = as.numeric(treatdate - min(treatdate))) %>%
+  mutate(treat_day = case_when(
+    (treatement %in% c("T8", "CON") & n_days == 8) ~ "last",
+    (treatement %in% c("T8", "CON") & n_days == 0) ~ "first",
+    (treatement == "T1" & n_days == 1) ~ "last",
+    (treatement == "T1" & n_days == 0) ~ "first",
+    TRUE ~ NA_character_ # All other rows are NA
+  )) %>%
+  ungroup()
+
+# View the result
+print(eod_measurement_data)
+```
+
+```{r}
+filt_eod_measurement_data <- eod_measurement_data %>%
+  filter(!is.na(treat_day))
+filt_eod_measurement_data$treat_day<-as.factor(filt_eod_measurement_data$treat_day)
+```
+
+
+
+## Duration
+Let's check overall duration first.  This has been updated to calculate duration the way that Mau does, so the results should be identical.
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "duration",
+  y_axis_label = "EOD duration (msec)"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+## P1 Duration and P2 Duration
+P1 duration does increase in T8 day, but not by a huge margin.  P2 duration, however increases pretty substantially.  Interesting...
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "p1_duration",
+  y_axis_label = "P1 duration (msec)"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+
+
+
+```{r}
+
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "p2_duration",
+  y_axis_label = "P2 duration (msec)"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+
+```
+
+## Ratio of vP2 to vP1
+
+A larger negative value means that P2 is "bigger" than P1.  We can see that VP2 is always larger on the first day, but becomes more proportional after 8 days of T treatment.  Does this suggest less Na+ expression?
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "vP2.vP1.ratio",
+  y_axis_label = "vP2/vP1 ratio"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+
+
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "vP2",
+  y_axis_label = "vP2"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "vP1",
+  y_axis_label = "vP1"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+
+
+## P1-P2 Delay
+Since P1 is defined as T=0, then tP2 is the relative timing of P2.
+We can see that it takes longer to reach P2 after 8 days of T treatment, suggesting the action potentials are delayed relative to each other (capacitance?)
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "tP2",
+  y_axis_label = "P1-P2 Delay (msec)"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+## P2 Decay Time Constant
+ A larger τ indicates that the decay happens more rapidly. This means P2's amplitude diminishes over a larger time after testasterone treatment.  This suggests increased potassium channel expression, I think.
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "decay_tau",
+  y_axis_label = "τ"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+## Slope of P1
+
+There is no significant difference here.
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "sS1",
+  y_axis_label = "Slope of P1"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+
+```
+## P0
+
+P0 does in fact get larger with testasterone treatment as well, though interestingly, the peak voltage stays the same, suggesting that this change is because the peak is broader (lasts longer).  Not sure what would affect this, other than the electrocyte getting thicker?  We don't know much about the ion channels present on the stalks, so this is an interesting point to consider in a future study.
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "aP0",
+  y_axis_label = "Area P0"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+```
+
+```{r}
+results <- create_significance_plot(
+  data = filt_eod_measurement_data,
+  y_variable = "vP0",
+  y_axis_label = "Voltage of P0"
+)
+
+# Display the plot
+print(results$plot)
+results$anova
+results$posthoc
+
+```
+## Summary Table of All Comparisions
+
+This code generates a summary table and outputs to word for editing and inclusion in the manuscript.
+
+```{r}
+statistics <- c("duration", "p1_duration", "p2_duration", "vP2.vP1.ratio", "tP2", "decay_tau","aP0","vP0","sS1","vP1","vP2")
+
+# Filter, summarize, and format
+summary_table <- filt_eod_measurement_data %>%
+  group_by(treat_day, treatement) %>%            # Group by n_days and treatment
+  summarise(across(all_of(statistics),
+                   ~ sprintf("%.2f ± %.2f", 
+                             mean(.x, na.rm = TRUE), 
+                             sd(.x, na.rm = TRUE)),
+                   .names = "{col}")) %>%     # Combine mean and sd into a single column
+  ungroup()                                   # Remove grouping
+
+
+colnames(summary_table)<-c("Treatment Day","Treatment","Duration","P1 Duration","P2 Duration","vP2/vP1","tP2","τ","aP0","vP0","sS1","vP1","vP2")
+
+# Create the flextable
+flextable_table <- flextable(summary_table) %>%
+  bg(part = "header", bg = "#D3D3D3") %>%  # Set header background color
+  bold(part = "header") %>%               # Bold the header row
+  fontsize(size = 10, part = "all") %>%   # Set font size for the entire table
+  autofit() %>%                           # Adjust column widths
+  set_table_properties(layout = "autofit") %>%      # Fit table to layout
+  line_spacing(i = NULL, space = 1.2)     # Add line spacing for better readability
+
+# Define landscape section properties
+landscape_section <- block_section(
+  prop_section(
+    page_size = page_size(orient = "landscape") # Set the page orientation to landscape
+  )
+)
+
+# Create the Word document
+doc <- read_docx() %>%
+  body_add_flextable(flextable_table) %>% # Add the flextable
+  body_add(landscape_section)      # Apply landscape section properties
+
+
+# Export the Word document
+print(doc, target = file.path(root,"output_data/eod_summary_norm.docx"))
+
+flextable_table
+```
+
+
+```{r}
+library(multcompView)
+library(tidyr)
+library(dplyr)
+
+# Define the list of variables for which you want to add significance letters.
+statistics <- c("duration", "p1_duration", "p2_duration", "vP2.vP1.ratio", 
+                "tP2", "decay_tau", "aP0", "vP0", "sS1", "vP1", "vP2")
+
+get_letters_by_day <- function(df, group_info, var) {
+  # Run Tukey's test for the given variable
+  tukey_res <- tukey_hsd(df, as.formula(paste(var, "~ treatement")))
+  
+  # Create a matrix of p-values between treatment groups
+  groups <- sort(unique(df$treatement))
+  pmat <- matrix(1, nrow = length(groups), ncol = length(groups),
+                 dimnames = list(groups, groups))
+  
+  if(nrow(tukey_res) > 0) {
+    for(i in seq_len(nrow(tukey_res))) {
+      grp1 <- tukey_res$group1[i]
+      grp2 <- tukey_res$group2[i]
+      p_val <- tukey_res$p.adj[i]
+      pmat[grp1, grp2] <- p_val
+      pmat[grp2, grp1] <- p_val
+    }
+  }
+  
+  # Compute grouping letters
+  letters_out <- multcompLetters(pmat, threshold = 0.05)$Letters
+  
+  # Return only the treatment and letter columns.
+  # The grouping variable (treat_day) is added automatically.
+  data.frame(treatement = names(letters_out), 
+             letter = letters_out, 
+             stringsAsFactors = FALSE)
+}
+
+
+
+letters_list <- lapply(statistics, function(var) {
+  filt_eod_measurement_data %>%
+    group_by(treat_day) %>%
+    group_modify(~ get_letters_by_day(.x, .y, var)) %>%
+    ungroup() %>%
+    mutate(variable = var)
+})
+all_letters <- bind_rows(letters_list)
+
+
+
+# Now, create your summary table as before.
+# (We assume the summary_table was computed as in your previous chunk.)
+summary_table <- filt_eod_measurement_data %>%
+  group_by(treat_day, treatement) %>%  # Group by day and treatment
+  summarise(across(all_of(statistics),
+                   ~ sprintf("%.2f ± %.2f", 
+                             mean(.x, na.rm = TRUE), 
+                             sd(.x, na.rm = TRUE))),
+            .groups = "drop")  # Combine mean and sd into a single column
+
+# For nicer column names, rename (you can adjust this mapping as needed).
+colnames(summary_table) <- c("Treatment Day","Treatment",
+                             "Duration","P1 Duration","P2 Duration",
+                             "vP2/vP1","tP2","τ","aP0","vP0","sS1","vP1","vP2")
+
+# Since our letters are keyed by the original variable names (e.g., "duration") 
+# we set up a mapping to match the summary_table columns.
+mapping_df <- tibble(
+  Variable = c("Duration", "P1 Duration", "P2 Duration", "vP2/vP1", 
+               "tP2", "τ", "aP0", "vP0", "sS1", "vP1", "vP2"),
+  var = statistics
+)
+
+# Reshape the summary_table to long format to merge the letters.
+summary_long <- summary_table %>%
+  pivot_longer(cols = -c(`Treatment Day`, Treatment),
+               names_to = "Variable",
+               values_to = "Summary") %>%
+  left_join(mapping_df, by = "Variable")
+
+# Merge with the letters (join by treat_day/Treatment and the variable key).
+# Note: In summary_table, "Treatment Day" corresponds to "treat_day" in all_letters.
+summary_long <- summary_long %>%
+  left_join(all_letters, by = c("var" = "variable",
+                                "Treatment Day" = "treat_day",
+                                "Treatment" = "treatement"))
+
+# Append the significance letter (if available) to the summary string.
+summary_long <- summary_long %>%
+  mutate(Summary = ifelse(is.na(letter),
+                          Summary,
+                          paste0(Summary, " (", letter, ")")))
+
+# (Optional) Pivot back to wide format.
+summary_wide <- summary_long %>%
+  select(-var, -letter) %>%
+  pivot_wider(names_from = Variable, values_from = Summary)
+
+# Create a flextable from the updated summary_wide table.
+flextable_table_sig <- flextable(summary_wide) %>%
+  bg(part = "header", bg = "#D3D3D3") %>%  # Header background color
+  bold(part = "header") %>%               # Bold header row
+  fontsize(size = 10, part = "all") %>%   # Font size for entire table
+  autofit() %>%                           # Adjust column widths
+  set_table_properties(layout = "autofit") %>%      # Fit table to layout
+  line_spacing(i = NULL, space = 1.2)       # Better readability
+
+# Define landscape section properties for Word export
+landscape_section <- block_section(
+  prop_section(
+    page_size = page_size(orient = "landscape") # Landscape orientation
+  )
+)
+
+# Create the Word document with the updated flextable.
+doc <- read_docx() %>%
+  body_add_flextable(flextable_table_sig) %>%  # Add flextable
+  body_add(landscape_section)                  # Apply landscape layout
+
+# Export the Word document.
+print(doc, target = file.path(root,"output_data/eod_summary_norm_with_sig.docx"))
+
+# Display the updated flextable in the R Markdown output.
+flextable_table_sig
+```
